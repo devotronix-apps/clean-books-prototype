@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eef0e9"><meta name="description" content="Explore the interactive Clean Books mobile app UI prototype. A personal EPUB reader with thoughtful reading and parent editing tools.">
+<title>Clean Books — Mobile App Prototype</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="prototype.css">
+</head>
+<body>
+<main class="prototype-stage">
+  <aside class="prototype-panel">
+    <a class="prototype-brand" href="./"><img src="assets/favicon.svg" width="40" height="40" alt="">Clean Books</a>
+    <div class="prototype-label">MOBILE APP UI PROTOTYPE</div>
+    <h1>A little peace.<br>Every page.</h1>
+    <p class="intro">A personal reading app, made for the quiet moments. Explore its screens just as you would on your phone.</p>
+    <div class="prototype-divider"></div>
+    <h2>Take a look around</h2>
+    <nav class="jump-list" aria-label="Prototype screen shortcuts">
+      <button data-screen="home"><span>01</span>Home <i>↗</i></button>
+      <button data-screen="shelf"><span>02</span>Bookshelf <i>↗</i></button>
+      <button data-screen="explore"><span>03</span>Explore <i>↗</i></button>
+      <button data-screen="settings"><span>04</span>Settings <i>↗</i></button>
+    </nav>
+    <div class="prototype-actions"><button data-tool="tour">App setup tour <span>→</span></button><button data-tool="prototype">Prototype controls <span>→</span></button></div>
+    <p class="prototype-note">Interactive sample content. Native device features are demonstrated with labeled previews. Changes stay in this browser.</p>
+    <a class="source-link" href="https://github.com/devotronix-apps/clean-books-prototype" target="_blank" rel="noopener">View prototype on GitHub ↗</a>
+  </aside>
+  <section class="device-stage" aria-label="Clean Books phone preview">
+    <div class="device-wrap"><div class="phone"><div class="phone-screen"><iframe id="phone-preview" title="Clean Books mobile app" src="app.html" allow="autoplay"></iframe></div><div class="side-button left-one"></div><div class="side-button left-two"></div><div class="side-button right-one"></div></div></div>
+    <p class="device-caption"><span></span> CLICK, SCROLL & EXPLORE THE APP</p>
+  </section>
+</main>
+<script src="prototype.js"></script>
+</body></html>

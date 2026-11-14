@@ -1,0 +1,33 @@
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const context=vm.createContext({console,structuredClone,Date,Math,JSON,RegExp,Set,Map,Number,String,Array,Object,TextDecoder,TextEncoder,Blob,Response,DecompressionStream,DataView,Uint8Array,URL,setTimeout,clearTimeout,localStorage:{getItem:()=>null,setItem:()=>{}},navigator:{onLine:true},window:{addEventListener(){},speechSynthesis:{cancel(){}}},document:{addEventListener(){},querySelector(){return null},querySelectorAll(){return []}}});
+vm.runInContext(readFileSync(new URL('../defaults.js',import.meta.url),'utf8'),context);
+// Skip the initial paint; exercise the production state and behavior directly.
+const source=readFileSync(new URL('../app.js',import.meta.url),'utf8').replace(/^render\(\);$/m,'');
+vm.runInContext(source,context);
+const run=s=>vm.runInContext(s,context);
+let checks=0;
+function check(name,fn){fn();checks++;console.log('✓ '+name)}
+check('All 157 source-defined stock rules are included',()=>assert.equal(run('window.DEFAULT_FILTERS.length'),157));
+check('Literal punctuation is escaped',()=>assert.equal(run(`filterRegex({find:'a.b',mode:'Whole word',regex:false}).test('axb')`),false));
+check('Whole-word matches preserve suffixes and surrounding punctuation',()=>assert.equal(run(`S.filters=[{find:'garden',replacement:'grove',mode:'Whole word',enabled:true}]; cleanText('Garden, gardener; GARDEN!',book('secret'))`),'Grove, gardener; Grove!'));
+check('Word-start and word-end boundaries differ',()=>{assert.equal(run(`filterRegex({find:'garden',mode:'Word start'}).test('gardener')`),true);assert.equal(run(`filterRegex({find:'garden',mode:'Word end'}).test('gardener')`),false)});
+check('More specific literals win without recursively replacing output',()=>assert.equal(run(`S.filters=[{find:'bad',replacement:'good',mode:'Anywhere in word',enabled:true},{find:'bad word',replacement:'bad phrase',mode:'Whole word',enabled:true}];cleanText('A bad word.',book('secret'))`),'A bad phrase.'));
+check('Invalid regex stays ineffective',()=>assert.equal(run(`S.filters=[{find:'[',replacement:'safe',regex:true,enabled:true}];cleanText('Keep [ this.',book('secret'))`),'Keep [ this.'));
+check('Global pause and per-book exclusions preserve rule definitions',()=>{run(`S.filters=[{find:'garden',replacement:'grove',mode:'Whole word',enabled:true}];book('secret').excluded=true`);assert.equal(run(`cleanText('garden',book('secret'))`),'garden');run(`book('secret').excluded=false;S.prefs.filters=false`);assert.equal(run(`cleanText('garden',book('secret'))`),'garden');assert.equal(run('S.filters.length'),1);run('S.prefs.filters=true')});
+check('Category allowance and manual redactions remain independent',()=>{run(`S.tags.secret={'7:0':[{category:'Mature Themes',severity:55,confidence:100}]};S.limits.secret={'Mature Themes':'Mild'};S.redacted.secret=[]`);assert.equal(run(`isRedacted(book('secret'),7,0)`),true);run(`S.limits.secret['Mature Themes']='Strong';S.redacted.secret=['7:0']`);assert.equal(run(`isRedacted(book('secret'),7,0)`),true)});
+check('Speech suppresses manual paragraphs and exact text redactions',()=>{run(`reader={id:'secret',page:7};S.prefs.redactions=true;S.ranges.secret={'7:1':[{start:0,end:3}]}`);const text=run('speechText()');assert.ok(!text.includes('When Mary Lennox'));assert.ok(!text.includes('One of the nice'));assert.ok(text.includes(' of the nice'));assert.ok(text.includes('Mary had stepped'))});
+check('Pronunciations change speech while keeping visible text intact',()=>{run(`S.pronunciations.secret=[{word:'robin',as:'ROB-IN'}]`);assert.ok(run('speechText()').includes('ROB-IN'));assert.ok(run(`paragraphs(book('secret'),7).join(' ')`).includes('robin'))});
+check('Wrong-edition review packages are rejected without mutation',()=>{assert.throws(()=>run(`validatePackage('cleanreaderratings',{format:'cleanbooks-prototype',type:'cleanreaderratings',version:1,edition:'wrong',tags:{}})`),/matching book/);assert.equal(run(`S.tags.secret['7:0'][0].severity`),55)});
+check('Unsafe text-range mappings are rejected',()=>assert.throws(()=>run(`validatePackage('cleanreaderredactions',{format:'cleanbooks-prototype',type:'cleanreaderredactions',version:1,edition:fingerprint(book('secret')),paragraphs:[],ranges:{'7:0':[{start:0,end:999999}]}})`),/Invalid text range/));
+check('Incompatible native package schema is explicitly rejected',()=>assert.throws(()=>run(`validatePackage('cleanreaderfilters',{version:7,filters:[]})`),/not compatible/));
+check('Book-scoped pronunciation merges retain target entries on conflict',()=>{run(`S.pronunciations.anne=[{word:'Mary',as:'existing'}];mergePronunciations('anne',[{word:'MARY',as:'new'},{word:'Robin',as:'rob-in'}])`);assert.equal(run('S.pronunciations.anne.length'),2);assert.equal(run('S.pronunciations.anne[0].as'),'existing')});
+check('Every built-in pattern can be compiled',()=>assert.equal(run(`window.DEFAULT_FILTERS.filter(f=>{try{filterRegex(f);return false}catch{return true}}).length`),0));
+const fixture=readFileSync(new URL('./fixtures/a-quiet-morning.epub',import.meta.url));
+context.epubFixture={arrayBuffer:async()=>fixture.buffer.slice(fixture.byteOffset,fixture.byteOffset+fixture.byteLength)};
+const archive=await run('unzip(epubFixture)');
+const chapter=await archive.read('EPUB/one.xhtml'),metadata=await archive.read('EPUB/package.opf');
+check('Real EPUB ZIP entries decompress correctly',()=>{assert.ok(chapter.includes('Morning light found its way'));assert.ok(metadata.includes('A Quiet Morning'))});
+check('Imported filter identities and match modes cannot inject UI markup',()=>assert.throws(()=>run(`validatePackage('cleanreaderfilters',{format:'cleanbooks-prototype',type:'cleanreaderfilters',version:1,rules:[{id:'bad-id\"',find:'x',replacement:'y',mode:'Whole word',regex:false,enabled:true}]})`),/invalid/));
+console.log(`\n${checks} behavior checks passed.`);
